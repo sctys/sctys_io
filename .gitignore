@@ -102,3 +102,10 @@ venv.bak/
 
 # mypy
 .mypy_cache/
+
+*.json
+*.html
+*.txt
+*.pkl
+*.csv
+*.hdf

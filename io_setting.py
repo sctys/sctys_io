@@ -1,4 +1,5 @@
 NOTIFIER_PATH = '/media/sctys/Seagate Expansion Drive/Projects/sctys_notify'
+TEMP_PATH = '/media/sctys/Seagate Expansion Drive/Projects/tmp'
 
 class FileIOSetting(object):
     FILEIO_LOGGER_PATH = '/media/sctys/Seagate Expansion Drive/Projects/Log/log_sctys_io/'
