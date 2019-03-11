@@ -90,7 +90,7 @@ class FileIO(FileIOSetting):
                             path, file_name, file_type, verbose, **kwargs), file_path, file_name_list))
             else:
                 data = list(map(lambda file_name: self.load_file(
-                            file_name, file_type, verbose, **kwargs), file_name_list))
+                            file_path, file_name, file_type, verbose, **kwargs), file_name_list))
         elif mode == 'thread':
             if isinstance(file_path, list):
                 with ThreadPoolExecutor(max_workers=self.FILEIO_NO_WORKERS) as executor:
@@ -108,17 +108,17 @@ class FileIO(FileIOSetting):
             else:
                 with ProcessPoolExecutor(max_workers=self.FILEIO_NO_WORKERS) as executor:
                     data = executor.map(lambda file_name: self.load_file(
-                                        file_name, file_type, verbose, **kwargs), file_name_list)
+                                        file_path, file_name, file_type, verbose, **kwargs), file_name_list)
         return data
 
     def notify_fail_file(self, save):
         if save:
             operation = 'saved'
-            fail_list_paths = [fail['full_path'] for fail in self.fail_save_list]
+            fail_list_files = [os.path.join(fail['file_path'], fail['file_name']) for fail in self.fail_save_list]
         else:
             operation = 'loaded'
-            fail_list_paths = [fail['full_path'] for fail in self.fail_load_list]
-        fail_list_str = '\n'.join(fail_list_paths)
+            fail_list_files = [os.path.join(fail['file_path'], fail['file_name']) for fail in self.fail_load_list]
+        fail_list_str = '\n'.join(fail_list_files)
         message = 'The following files were not {} successfully:\n\n'.format(operation) + fail_list_str
         send_message(message, self.FILEIO_NOTIFIER)
 
@@ -142,12 +142,12 @@ class FileIO(FileIOSetting):
         fail_save_list = [(fail['data'], fail['file_path'], fail['file_name'], fail['file_type'], fail['verbose'],
                            fail['kwargs']) for fail in self.fail_save_list]
         data_list, file_path, file_name_list, file_type, verbose, kwargs = \
-            ([fail[index] for fail in fail_save_list] for index in range(5))
-        unique_file_path = list(set(file_path))
-        file_path = unique_file_path[0] if len(unique_file_path) == 1 else file_path
-        file_type = list(set(file_type))[0]
-        verbose = list(set(verbose))[0]
-        kwargs = list(set(kwargs))[0]
+            ([fail[index] for fail in fail_save_list] for index in range(6))
+        unique_file_path = set(file_path)
+        file_path = list(unique_file_path)[0] if len(unique_file_path) == 1 else file_path
+        file_type = file_type[0]
+        verbose = verbose[0]
+        kwargs = kwargs[0]
         self.save_multiple_files(mode, data_list, file_path, file_name_list, file_type, verbose, **kwargs)
 
     def retry_load_multiple_files(self, mode, file_name=None):
@@ -156,13 +156,13 @@ class FileIO(FileIOSetting):
         fail_load_list = [(fail['file_path'], fail['file_name'], fail['file_type'], fail['verbose'], fail['kwargs'])
                           for fail in self.fail_load_list]
         file_path, file_name_list, file_type, verbose, kwargs = \
-            ([fail[index] for fail in fail_load_list] for index in range(4))
-        unique_file_path = list(set(file_path))
-        file_path = unique_file_path[0] if len(unique_file_path) == 1 else file_path
-        file_type = list(set(file_type))[0]
-        verbose = list(set(verbose))[0]
-        kwargs = list(set(kwargs))[0]
-        data = self.load_multiple_files(mode, file_path, file_type, verbose, **kwargs)
+            ([fail[index] for fail in fail_load_list] for index in range(5))
+        unique_file_path = set(file_path)
+        file_path = list(unique_file_path)[0] if len(unique_file_path) == 1 else file_path
+        file_type = file_type[0]
+        verbose = verbose[0]
+        kwargs = kwargs[0]
+        data = self.load_multiple_files(mode, file_path, file_name_list, file_type, verbose, **kwargs)
         return data
 
     def clear_temp_fail_file(self, save):
@@ -172,7 +172,7 @@ class FileIO(FileIOSetting):
             file_key = 'fileio_fail_load_list_'
         fail_file_list = os.listdir(TEMP_PATH)
         fail_file_list = [os.path.join(TEMP_PATH, fail_file) for fail_file in fail_file_list
-                               if file_key in fail_file]
+                          if file_key in fail_file]
         [os.remove(fail_file) for fail_file in fail_file_list]
 
     @ staticmethod
@@ -181,11 +181,11 @@ class FileIO(FileIOSetting):
             file.write(data)
 
     def _save_html_file(self, data, full_path, encoding='utf-8'):
-        self._save_binary_file(data, full_path, encoding)
+        self._save_txt_file(data, full_path, encoding)
 
     def _save_json_file(self, data, full_path, encoding='utf-8'):
         data = json.dumps(data)
-        self._save_binary_file(data, full_path, encoding)
+        self._save_txt_file(data, full_path, encoding)
 
     @ staticmethod
     def _save_txt_file(data, full_path, encoding='utf-8'):
@@ -216,11 +216,11 @@ class FileIO(FileIOSetting):
         return data
 
     def _load_html_file(self, full_path, encoding='utf-8'):
-        data = self._load_html_file(full_path, encoding)
+        data = self._load_txt_file(full_path, encoding)
         return data
 
     def _load_json_file(self, full_path, encoding='utf-8'):
-        data = self._load_binary_file(full_path, encoding)
+        data = self._load_txt_file(full_path, encoding)
         data = json.loads(data)
         return data
 
@@ -294,7 +294,11 @@ def test_fail_list(fail_file_name_list, file_type):
     print('fail_load_list: {}'.format(io.fail_load_list))
     io.notify_fail_file(False)
     data_list = io.retry_load_multiple_files('thread')
+    print(data_list)
+    fail_file_name = os.listdir(TEMP_PATH)
+    fail_file_name = [file_name for file_name in fail_file_name if 'fileio_fail_load_list_' in file_name][-1]
     io.clear_temp_fail_file(False)
+    print('fail_file_name: {}'.format(fail_file_name))
     io.fail_save_list = [{'data': data, 'file_path': file_path, 'file_name': fail_file, 'file_type': file_type,
                           'verbose': False, 'kwargs': {}} for data, fail_file in zip(data_list, fail_file_name_list)]
     print('fail_save_list: {}'.format(io.fail_save_list))
@@ -309,12 +313,15 @@ def test_fail_list(fail_file_name_list, file_type):
     print('fail_save_list: {}'.format(io.fail_save_list))
     io.notify_fail_file(True)
     io.retry_save_multiple_files('thread')
+    fail_file_name = os.listdir(TEMP_PATH)
+    fail_file_name = [file_name for file_name in fail_file_name if 'fileio_fail_save_list_' in file_name][-1]
+    print('fail_file_name: {}'.format(fail_file_name))
     io.clear_temp_fail_file(True)
 
 
 if __name__ == '__main__':
-    run_test_load_save_file = True
-    run_test_load_save_multiple_file = True
+    run_test_load_save_file = False
+    run_test_load_save_multiple_file = False
     run_test_file_list = True
     if run_test_load_save_file:
         test_load_save_file('test_html_file_1.html', 'html')
