@@ -56,6 +56,7 @@ class FileIO(FileIOSetting):
         self.fail_load_list = []
 
     def save_multiple_files(self, mode, data_list, file_path, file_name_list, file_type, verbose=False, **kwargs):
+        self.clear_fail_save_list()
         if mode == 'normal':
             if isinstance(file_path, list):
                 list(map(lambda data, path, file_name: self.save_file(
@@ -81,9 +82,12 @@ class FileIO(FileIOSetting):
                 with ProcessPoolExecutor(max_workers=self.FILEIO_NO_WORKERS) as executor:
                     executor.map(lambda data, file_name: self.save_file(
                         data, file_path, file_name, file_type, verbose, **kwargs), data_list, file_name_list)
+        self.notify_fail_file(True)
+        self.save_fail_save_list()
 
     def load_multiple_files(self, mode, file_path, file_name_list, file_type, verbose=False, **kwargs):
         data = []
+        self.clear_fail_load_list()
         if mode == 'normal':
             if isinstance(file_path, list):
                 data = list(map(lambda path, file_name: self.load_file(
@@ -94,21 +98,23 @@ class FileIO(FileIOSetting):
         elif mode == 'thread':
             if isinstance(file_path, list):
                 with ThreadPoolExecutor(max_workers=self.FILEIO_NO_WORKERS) as executor:
-                    data = executor.map(lambda path, file_name: self.load_file(
-                                        path, file_name, file_type, verbose, **kwargs), file_path, file_name_list)
+                    data = list(executor.map(lambda path, file_name: self.load_file(
+                                        path, file_name, file_type, verbose, **kwargs), file_path, file_name_list))
             else:
                 with ThreadPoolExecutor(max_workers=self.FILEIO_NO_WORKERS) as executor:
-                    data = executor.map(lambda file_name: self.load_file(
-                                        file_path, file_name, file_type, verbose, **kwargs), file_name_list)
+                    data = list(executor.map(lambda file_name: self.load_file(
+                                        file_path, file_name, file_type, verbose, **kwargs), file_name_list))
         elif mode == 'process':
             if isinstance(file_path, list):
                 with ProcessPoolExecutor(max_workers=self.FILEIO_NO_WORKERS) as executor:
-                    data = executor.map(lambda path, file_name: self.load_file(
-                                        path, file_name, file_type, verbose, **kwargs), file_path, file_name_list)
+                    data = list(executor.map(lambda path, file_name: self.load_file(
+                                        path, file_name, file_type, verbose, **kwargs), file_path, file_name_list))
             else:
                 with ProcessPoolExecutor(max_workers=self.FILEIO_NO_WORKERS) as executor:
-                    data = executor.map(lambda file_name: self.load_file(
-                                        file_path, file_name, file_type, verbose, **kwargs), file_name_list)
+                    data = list(executor.map(lambda file_name: self.load_file(
+                                        file_path, file_name, file_type, verbose, **kwargs), file_name_list))
+        self.notify_fail_file(False)
+        self.save_fail_load_list()
         return data
 
     def notify_fail_file(self, save):
@@ -119,19 +125,22 @@ class FileIO(FileIOSetting):
             operation = 'loaded'
             fail_list_files = [os.path.join(fail['file_path'], fail['file_name']) for fail in self.fail_load_list]
         fail_list_str = '\n'.join(fail_list_files)
-        message = 'The following files were not {} successfully:\n\n'.format(operation) + fail_list_str
-        send_message(message, self.FILEIO_NOTIFIER)
+        if len(fail_list_str) > 0:
+            message = 'The following files were not {} successfully:\n\n'.format(operation) + fail_list_str
+            send_message(message, self.FILEIO_NOTIFIER)
 
     def save_fail_save_list(self):
-        file_name = 'fileio_fail_save_list_{}.pkl'.format(int(time.time()))
-        self.save_file(self.fail_save_list, TEMP_PATH, file_name, 'joblib')
+        if len(self.fail_save_list) > 0:
+            file_name = 'fileio_fail_save_list_{}.pkl'.format(int(time.time()))
+            self.save_file(self.fail_save_list, TEMP_PATH, file_name, 'joblib')
 
     def load_fail_save_list(self, file_name):
         self.fail_save_list = self.load_file(TEMP_PATH, file_name, 'joblib')
 
     def save_fail_load_list(self):
-        file_name = 'fileio_fail_load_list_{}.pkl'.format(int(time.time()))
-        self.save_file(self.fail_load_list, TEMP_PATH, file_name, 'joblib')
+        if len(self.fail_load_list):
+            file_name = 'fileio_fail_load_list_{}.pkl'.format(int(time.time()))
+            self.save_file(self.fail_load_list, TEMP_PATH, file_name, 'joblib')
 
     def load_fail_load_list(self, file_name):
         self.fail_load_list = self.load_file(TEMP_PATH, file_name, 'joblib')
@@ -184,7 +193,8 @@ class FileIO(FileIOSetting):
         self._save_txt_file(data, full_path, encoding)
 
     def _save_json_file(self, data, full_path, encoding='utf-8'):
-        data = json.dumps(data)
+        if not isinstance(data, str):
+            data = json.dumps(data)
         self._save_txt_file(data, full_path, encoding)
 
     @ staticmethod
