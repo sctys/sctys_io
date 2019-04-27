@@ -25,6 +25,11 @@ class FileIO(FileIOSetting):
     def set_logger(self):
         self.logger = set_logger(self.FILEIO_LOGGER_PATH, self.FILEIO_LOGGER_FILE, self.FILEIO_LOGGER_LEVEL, __name__)
 
+    @ staticmethod
+    def create_directory_if_not_exist(path):
+        if not os.path.exists(path):
+            os.makedirs(path)
+
     def save_file(self, data, file_path, file_name, file_type, verbose=False, **kwargs):
         full_path = os.path.join(file_path, file_name)
         try:
@@ -259,6 +264,11 @@ class FileIO(FileIOSetting):
     @ staticmethod
     def _load_hdf_file(full_path, **kwargs):
         data = pd.read_hdf(full_path, 'df', **kwargs)
+        return data
+
+    @ staticmethod
+    def _load_excel_file(full_path, **kwargs):
+        data = pd.read_excel(full_path, **kwargs)
         return data
 
 
