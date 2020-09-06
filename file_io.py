@@ -30,6 +30,12 @@ class FileIO(FileIOSetting):
         if not os.path.exists(path):
             os.makedirs(path)
 
+    @staticmethod
+    def check_if_file_exists(path, file_name):
+        full_file_name = os.path.join(path, file_name)
+        file_exist = os.path.isfile(full_file_name)
+        return file_exist
+
     def save_file(self, data, file_path, file_name, file_type, verbose=False, **kwargs):
         full_path = os.path.join(file_path, file_name)
         try:
@@ -212,17 +218,20 @@ class FileIO(FileIOSetting):
         joblib.dump(data, full_path, **kwargs)
 
     @ staticmethod
-    def _save_pickle_file(data, full_path, **kwargs):
-        with open(full_path, 'wb') as file:
-            pickle.dump(data, file, **kwargs)
+    def _save_pickle_file(data, full_path, pandas=True, **kwargs):
+        if pandas:
+            data.to_pickle(full_path, **kwargs)
+        else:
+            with open(full_path, 'wb') as file:
+                pickle.dump(data, file, **kwargs)
 
     @ staticmethod
     def _save_csv_file(data, full_path, **kwargs):
         data.to_csv(full_path, **kwargs)
 
     @ staticmethod
-    def _save_hdf_file(data, full_path, **kwargs):
-        data.to_hdf(full_path, 'df', **kwargs)
+    def _save_hdf_file(data, full_path, key='df', **kwargs):
+        data.to_hdf(full_path, key, **kwargs)
 
     @ staticmethod
     def _load_binary_file(full_path, encoding='utf-8'):
@@ -251,9 +260,12 @@ class FileIO(FileIOSetting):
         return data
 
     @ staticmethod
-    def _load_pickle_file(full_path, **kwargs):
-        with open(full_path, 'rb') as file:
-            data = pickle.load(file, **kwargs)
+    def _load_pickle_file(full_path, pandas=True, **kwargs):
+        if pandas:
+            data = pd.read_pickle(full_path, **kwargs)
+        else:
+            with open(full_path, 'rb') as file:
+                data = pickle.load(file, **kwargs)
         return data
 
     @ staticmethod
@@ -262,8 +274,8 @@ class FileIO(FileIOSetting):
         return data
 
     @ staticmethod
-    def _load_hdf_file(full_path, **kwargs):
-        data = pd.read_hdf(full_path, 'df', **kwargs)
+    def _load_hdf_file(full_path, key='df', **kwargs):
+        data = pd.read_hdf(full_path, key, **kwargs)
         return data
 
     @ staticmethod
