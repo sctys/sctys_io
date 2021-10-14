@@ -1,3 +1,5 @@
+''' To be archived
+
 import os
 import logging
 
@@ -9,3 +11,5 @@ def set_logger(logger_path, logger_file_name, logger_level, logger_name):
                         handlers=[logging.FileHandler(filename=logger_file), logging.StreamHandler()])
     logger = logging.getLogger(logger_name)
     return logger
+
+'''

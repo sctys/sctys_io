@@ -1,3 +1,5 @@
+'''To be archived
+
 import os
 
 NOTIFIER_PATH = os.environ['SCTYS_PROJECT'] + '/sctys_notify'
@@ -10,3 +12,5 @@ class FileIOSetting(object):
     FILEIO_LOGGER_LEVEL = 'DEBUG'
     FILEIO_NO_WORKERS = 100
     FILEIO_NOTIFIER = 'slack'
+
+'''
