@@ -4,7 +4,6 @@ sys.path.append(os.environ['SCTYS_PROJECT'] + '/sctys_global_parameters')
 from global_parameters import Path
 sys.path.append(Path.NOTIFIER_PROJECT)
 from notifiers import get_notifier
-import numpy as np
 import pandas as pd
 import pickle
 import json
@@ -16,6 +15,8 @@ from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 class FileIO(object):
 
     NOTIFIER = 'slack'
+    PREFIX_FAIL_SAVE_LIST = 'fileio_fail_save_list_'
+    PREFIX_FAIL_LOAD_LIST = 'fileio_fail_load_list_'
 
     def __init__(self, project, logger):
         self.project = project
@@ -146,12 +147,12 @@ class FileIO(object):
 
     def save_fail_save_list(self):
         if len(self.fail_save_list) > 0:
-            file_name = 'fileio_fail_save_list_{}.txt'.format(int(time.time()))
+            file_name = self.PREFIX_FAIL_SAVE_LIST + '{}.txt'.format(int(time.time()))
             self.save_file(self.fail_save_list, Path.TEMP_FOLDER, file_name, 'txt')
 
     def save_fail_load_list(self):
         if len(self.fail_load_list):
-            file_name = 'fileio_fail_load_list_{}.txt'.format(int(time.time()))
+            file_name = self.PREFIX_FAIL_LOAD_LIST + '{}.txt'.format(int(time.time()))
             self.save_file(self.fail_load_list, Path.TEMP_FOLDER, file_name, 'txt')
 
     '''
@@ -193,9 +194,9 @@ class FileIO(object):
 
     def clear_temp_fail_file(self, save):
         if save:
-            file_key = 'fileio_fail_save_list_'
+            file_key = self.PREFIX_FAIL_SAVE_LIST
         else:
-            file_key = 'fileio_fail_load_list_'
+            file_key = self.PREFIX_FAIL_LOAD_LIST
         fail_file_list = os.listdir(Path.TEMP_FOLDER)
         fail_file_list = [os.path.join(Path.TEMP_FOLDER, fail_file) for fail_file in fail_file_list
                           if file_key in fail_file]
