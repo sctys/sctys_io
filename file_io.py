@@ -3,7 +3,9 @@ import sys
 sys.path.append(os.environ['SCTYS_PROJECT'] + '/sctys_global_parameters')
 from global_parameters import Path
 sys.path.append(Path.NOTIFIER_PROJECT)
+sys.path.append(Path.UTILITIES_PROJECT)
 from notifiers import get_notifier
+from utilities_functions import convert_datetime_to_timestamp
 import pandas as pd
 import pickle
 import json
@@ -26,6 +28,10 @@ class FileIO(object):
         self.fail_load_list = []
 
     @ staticmethod
+    def check_if_folder_exist(path):
+        return os.path.exists(path)
+
+    @ staticmethod
     def create_directory_if_not_exist(path):
         if not os.path.exists(path):
             os.makedirs(path)
@@ -35,6 +41,24 @@ class FileIO(object):
         full_file_name = os.path.join(path, file_name)
         file_exist = os.path.isfile(full_file_name)
         return file_exist
+
+    def check_modified_time(self, path, file_name=None):
+        if file_name is not None:
+            path_exist = self.check_if_file_exists(path, file_name)
+        else:
+            path_exist = self.check_if_folder_exist(path)
+        if path_exist:
+            if file_name is not None:
+                path = os.path.join(path, file_name)
+            return os.path.getmtime(path)
+        else:
+            self.logger.info('{} not exist. Unable to get the modified time'.format(path))
+            return None
+
+    def list_modified_files_after_time(self, path, cutoff_date_time):
+        time_stamp = convert_datetime_to_timestamp(cutoff_date_time)
+        file_list = [file for file in os.listdir(path) if self.check_modified_time(path, file) > time_stamp]
+        return file_list
 
     def save_file(self, data, file_path, file_name, file_type, **kwargs):
         full_path = os.path.join(file_path, file_name)
