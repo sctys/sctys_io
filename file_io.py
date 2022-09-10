@@ -28,6 +28,10 @@ class FileIO(object):
         self.fail_load_list = []
 
     @ staticmethod
+    def list_files_in_folder(path):
+        return os.listdir(path)
+
+    @ staticmethod
     def check_if_folder_exist(path):
         return os.path.exists(path)
 
@@ -56,6 +60,8 @@ class FileIO(object):
             return None
 
     def list_modified_files_after_time(self, path, cutoff_date_time):
+        if not self.check_if_folder_exist(path):
+            return []
         time_stamp = convert_datetime_to_timestamp(cutoff_date_time)
         file_list = [file for file in os.listdir(path) if self.check_modified_time(path, file) > time_stamp]
         return file_list
@@ -261,8 +267,8 @@ class FileIO(object):
         data.to_csv(full_path, **kwargs)
 
     @ staticmethod
-    def _save_hdf_file(data, full_path, key='df', **kwargs):
-        data.to_hdf(full_path, key, **kwargs)
+    def _save_parquet_file(data, full_path, **kwargs):
+        data.to_hdf(full_path, **kwargs)
 
     @ staticmethod
     def _load_binary_file(full_path, encoding='utf-8'):
@@ -305,8 +311,8 @@ class FileIO(object):
         return data
 
     @ staticmethod
-    def _load_hdf_file(full_path, key='df', **kwargs):
-        data = pd.read_hdf(full_path, key, **kwargs)
+    def _load_parquet_file(full_path, **kwargs):
+        data = pd.read_parquet(full_path, **kwargs)
         return data
 
     @ staticmethod

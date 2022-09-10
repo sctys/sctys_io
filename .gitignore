@@ -109,3 +109,4 @@ venv.bak/
 *.pkl
 *.csv
 *.hdf
+aws_api_s3.py
