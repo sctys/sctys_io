@@ -7,6 +7,7 @@ sys.path.append(Path.UTILITIES_PROJECT)
 from notifiers import get_notifier
 from utilities_functions import convert_datetime_to_timestamp
 import tarfile
+import tqdm
 
 
 class FileCompress(object):
@@ -66,26 +67,29 @@ class FileCompress(object):
                 t.add(os.path.join(file_path, file), os.path.join(root_folder, file))
 
     def compress_list_of_files(self, full_file_list, root_folder, compressed_file_name):
-        compression_format = self.get_compression_format_from_file_name(compressed_file_name)
-        format_text = self.set_compression_format(compression_format)
-        tar_file_path = os.path.join(root_folder, compressed_file_name)
-        rename_file_list = [file_path.replace(root_folder, '') for file_path in full_file_list]
-        with tarfile.open(tar_file_path, 'w{}'.format(format_text)) as t:
-            for file, rename_file in zip(full_file_list, rename_file_list):
-                t.add(file, rename_file)
+        if len(full_file_list) > 0:
+            compression_format = self.get_compression_format_from_file_name(compressed_file_name)
+            format_text = self.set_compression_format(compression_format)
+            tar_file_path = os.path.join(root_folder, compressed_file_name)
+            rename_file_list = [file_path.replace(root_folder, '') for file_path in full_file_list]
+            with tarfile.open(tar_file_path, 'w{}'.format(format_text)) as t:
+                for file, rename_file in zip(tqdm.tqdm(full_file_list), rename_file_list):
+                    t.add(file, rename_file)
+        else:
+            self.logger.info('No files to be added to {}'.format(compressed_file_name))
 
     def extract_compressed_file(self, compressed_file_name, root_folder):
         compression_format = self.get_compression_format_from_file_name(compressed_file_name)
         format_text = self.set_compression_format(compression_format)
         tar_file_path = os.path.join(root_folder, compressed_file_name)
-        with tarfile.open(tar_file_path, 'w{}'.format(format_text)) as t:
+        with tarfile.open(tar_file_path, 'r{}'.format(format_text)) as t:
             t.extractall(root_folder)
 
     def list_files_in_compressed_file(self, compressed_file_name, root_folder):
         compression_format = self.get_compression_format_from_file_name(compressed_file_name)
         format_text = self.set_compression_format(compression_format)
         tar_file_path = os.path.join(root_folder, compressed_file_name)
-        with tarfile.open(tar_file_path, 'w{}'.format(format_text)) as t:
+        with tarfile.open(tar_file_path, 'r{}'.format(format_text)) as t:
             file_list = t.getnames()
         return file_list
 

@@ -20,6 +20,8 @@ s3 = s3fs.S3FileSystem(key=aws_api['id'], secret=aws_api['secret'])
 
 class S3FileIO(FileIO):
 
+    EMPTY_FILE_TAG = 'is_empty'
+
     def __init__(self, project, logger):
         super().__init__(project, logger)
 
@@ -27,6 +29,12 @@ class S3FileIO(FileIO):
     def list_files_in_folder(path):
         file_list = s3.ls(path)
         file_list = [file.split('/')[-1] for file in file_list]
+        return file_list
+
+    @ classmethod
+    def filter_non_empty_files(cls, path, file_list):
+        file_list = [file for file in file_list
+                     if not bool(s3.get_tags(os.path.join(path, file)).get(cls.EMPTY_FILE_TAG))]
         return file_list
 
     @ staticmethod
@@ -68,6 +76,16 @@ class S3FileIO(FileIO):
         file_list = [file['Key'].split('/')[-1] for file in file_list if file['LastModified'] > time_stamp]
         return file_list
 
+    def list_modified_files_between_time(self, path, cutoff_start_time, cutoff_end_time):
+        if not self.check_if_folder_exist(path):
+            return []
+        start_time_stamp = convert_datetime_to_timestamp(cutoff_start_time)
+        end_time_stamp = convert_datetime_to_timestamp(cutoff_end_time)
+        file_list = s3.listdir(path)
+        file_list = [file['Key'].split('/')[-1] for file in file_list
+                     if start_time_stamp <= file['LastModified'] < end_time_stamp]
+        return file_list
+
     def clear_temp_fail_file(self, save):
         if save:
             file_key = self.PREFIX_FAIL_SAVE_LIST
@@ -77,6 +95,11 @@ class S3FileIO(FileIO):
         fail_file_list = [os.path.join(Path.TEMP_FOLDER, fail_file) for fail_file in fail_file_list
                           if file_key in fail_file]
         [s3.rm(fail_file) for fail_file in fail_file_list]
+
+    def save_empty_file(self, path, file_name):
+        full_path = os.path.join(path, file_name)
+        self._save_txt_file('', full_path)
+        s3.put_tags(full_path, {self.EMPTY_FILE_TAG, 'true'})
 
     @staticmethod
     def _save_binary_file(data, full_path, encoding='utf-8'):
@@ -179,10 +202,14 @@ class S3FileIO(FileIO):
             local_file_name = remote_file_name
         remote_full_path = os.path.join(remote_path, remote_file_name)
         local_full_path = os.path.join(local_path, local_file_name)
+        if not os.path.exists(local_path):
+            os.makedirs(local_path)
         s3.get_file(remote_full_path, local_full_path)
 
-    def download_all_files_from_s3_folder(self, remote_path, local_path):
-        remote_file_list = self.list_files_in_folder(remote_path)
+    def download_list_of_files_from_s3_folder(self, remote_path, local_path, remote_file_list):
+        remote_file_list = self.filter_non_empty_files(remote_path, remote_file_list)
+        if not os.path.exists(local_path):
+            os.makedirs(local_path)
         for remote_file in remote_file_list:
             self.download_file_from_s3(remote_path, local_path, remote_file)
 
@@ -194,10 +221,51 @@ class S3FileIO(FileIO):
         remote_full_path = os.path.join(remote_path, remote_file_name)
         s3.put_file(local_full_path, remote_full_path)
 
-    def upload_all_files_to_s3_folder(self, local_path, remote_path):
-        local_file_list = os.listdir(local_path)
+    def upload_list_of_files_to_s3_folder(self, local_path, remote_path, local_file_list):
         for local_file in local_file_list:
             self.upload_file_to_s3(local_path, remote_path, local_file)
+
+    @ staticmethod
+    def verify_single_file_downloaded(local_path, local_file_name):
+        full_file_name = os.path.join(local_path, local_file_name)
+        file_exist = os.path.isfile(full_file_name)
+        if file_exist:
+            return {'ok': True}
+        else:
+            return {'ok': False, 'missed_files': full_file_name}
+
+    @ staticmethod
+    def verify_list_of_files_downloaded(local_path, remote_file_list):
+        local_file_list = [os.path.join(local_path, local_file) for local_file in remote_file_list]
+        missed_file_list = []
+        for local_file in local_file_list:
+            if not os.path.isfile(local_file):
+                missed_file_list.append(local_file)
+        if len(missed_file_list) == 0:
+            return {'ok': True}
+        else:
+            return {'ok': False, 'missed_files': missed_file_list}
+
+    @ staticmethod
+    def verify_single_file_uploaded(remote_path, remote_file_name):
+        full_remote_file_name = os.path.join(remote_path, remote_file_name)
+        file_exist = s3.exists(full_remote_file_name)
+        if file_exist:
+            return {'ok': True}
+        else:
+            return {'ok': False, 'missed_files': os.path.join(remote_path, remote_file_name)}
+
+    @ staticmethod
+    def verify_list_of_files_uploaded(remote_path, local_file_list):
+        remote_file_list = [os.path.join(remote_path, remote_file) for remote_file in local_file_list]
+        missed_file_list = []
+        for remote_file in remote_file_list:
+            if not s3.exists(remote_file):
+                missed_file_list.append(remote_file)
+        if len(missed_file_list) == 0:
+            return {'ok': True}
+        else:
+            return {'ok': False, 'missed_files': missed_file_list}
 
     @staticmethod
     def remove_file_from_s3(remote_path, remote_file_name):
@@ -207,4 +275,9 @@ class S3FileIO(FileIO):
     @staticmethod
     def remove_all_files_in_s3_folder(remote_path):
         s3.rm(remote_path, recursive=True)
+
+    def clone_list_of_empty_files_to_s3(self, remote_path, local_file_list):
+        for local_file in local_file_list:
+            self.save_empty_file(remote_path, local_file)
+
 

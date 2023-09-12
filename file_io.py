@@ -7,6 +7,7 @@ sys.path.append(Path.UTILITIES_PROJECT)
 from notifiers import get_notifier
 from utilities_functions import convert_datetime_to_timestamp
 import pandas as pd
+import pyarrow
 import pickle
 import json
 import time
@@ -64,6 +65,15 @@ class FileIO(object):
             return []
         time_stamp = convert_datetime_to_timestamp(cutoff_date_time)
         file_list = [file for file in os.listdir(path) if self.check_modified_time(path, file) > time_stamp]
+        return file_list
+
+    def list_modified_files_between_time(self, path, cutoff_start_time, cutoff_end_time):
+        if not self.check_if_folder_exist(path):
+            return []
+        start_time_stamp = convert_datetime_to_timestamp(cutoff_start_time)
+        end_time_stamp = convert_datetime_to_timestamp(cutoff_end_time)
+        file_list = [file for file in os.listdir(path)
+                     if start_time_stamp <= self.check_modified_time(path, file) < end_time_stamp]
         return file_list
 
     def save_file(self, data, file_path, file_name, file_type, **kwargs):
@@ -268,7 +278,7 @@ class FileIO(object):
 
     @ staticmethod
     def _save_parquet_file(data, full_path, **kwargs):
-        data.to_hdf(full_path, **kwargs)
+        data.to_parquet(full_path, **kwargs)
 
     @ staticmethod
     def _load_binary_file(full_path, encoding='utf-8'):
@@ -312,7 +322,10 @@ class FileIO(object):
 
     @ staticmethod
     def _load_parquet_file(full_path, **kwargs):
-        data = pd.read_parquet(full_path, **kwargs)
+        try:
+            data = pyarrow.parquet.ParquetDataset(full_path).read().to_pandas()
+        except Exception as e:
+            data = pd.read_parquet(full_path)
         return data
 
     @ staticmethod
