@@ -1,5 +1,6 @@
 import os
 import sys
+import redis
 sys.path.append(os.environ['SCTYS_PROJECT'] + '/sctys_global_parameters')
 from global_parameters import Path
 sys.path.append(Path.NOTIFIER_PROJECT)
@@ -24,9 +25,14 @@ class FileIO(object):
     def __init__(self, project, logger):
         self.project = project
         self.logger = logger
+        self.redis = None
         self.notifier = None
         self.fail_save_list = []
         self.fail_load_list = []
+
+    def init_redis(self):
+        if self.redis is None:
+            self.redis = redis.Redis(host='localhost', port=6379, db=0)
 
     @ staticmethod
     def list_files_in_folder(path):
@@ -46,6 +52,13 @@ class FileIO(object):
         full_file_name = os.path.join(path, file_name)
         file_exist = os.path.isfile(full_file_name)
         return file_exist
+
+    def get_module_name_from_file_path(self, file_path):
+        return file_path.split(self.project)[-1].split('/')[1:2][0]
+
+    def delete_file(self, path, file_name):
+        if self.check_if_file_exists(path, file_name):
+            os.remove(os.path.join(path, file_name))
 
     def check_modified_time(self, path, file_name=None):
         if file_name is not None:
@@ -76,11 +89,19 @@ class FileIO(object):
                      if start_time_stamp <= self.check_modified_time(path, file) < end_time_stamp]
         return file_list
 
-    def save_file(self, data, file_path, file_name, file_type, **kwargs):
+    def count_file_in_redis(self, folder_path):
+        if self.redis is None:
+            self.init_redis()
+        module = self.get_module_name_from_file_path(folder_path)
+        self.redis.incr(module)
+
+    def save_file(self, data, file_path, file_name, file_type, count_file=False, **kwargs):
         full_path = os.path.join(file_path, file_name)
         try:
             getattr(self, '_save_{}_file'.format(file_type))(data, full_path, **kwargs)
             self.logger.debug('{} saved.'.format(full_path))
+            if count_file:
+                self.count_file_in_redis(file_path)
         except Exception as e:
             self.logger.error('Error in saving file {}. {}'.format(full_path, e))
             self.fail_save_list.append({'data': data, 'file_path': file_path, 'file_name': file_name,
@@ -188,12 +209,12 @@ class FileIO(object):
     def save_fail_save_list(self):
         if len(self.fail_save_list) > 0:
             file_name = self.PREFIX_FAIL_SAVE_LIST + '{}.txt'.format(int(time.time()))
-            self.save_file(self.fail_save_list, Path.TEMP_FOLDER, file_name, 'txt')
+            #self.save_file(self.fail_save_list, Path.TEMP_FOLDER, file_name, 'txt')
 
     def save_fail_load_list(self):
         if len(self.fail_load_list):
             file_name = self.PREFIX_FAIL_LOAD_LIST + '{}.txt'.format(int(time.time()))
-            self.save_file(self.fail_load_list, Path.TEMP_FOLDER, file_name, 'txt')
+            #self.save_file(self.fail_load_list, Path.TEMP_FOLDER, file_name, 'txt')
 
     '''
     def load_fail_save_list(self, file_name):
@@ -296,8 +317,8 @@ class FileIO(object):
         return data
 
     @ staticmethod
-    def _load_txt_file(full_path, encoding='utf-8'):
-        with open(full_path, 'r', encoding=encoding) as file:
+    def _load_txt_file(full_path, encoding='utf-8', errors='ignore'):
+        with open(full_path, 'r', encoding=encoding, errors=errors) as file:
             data = file.read()
         return data
 
