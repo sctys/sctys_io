@@ -19,6 +19,7 @@ from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 class FileIO(object):
 
     NOTIFIER = 'slack'
+    DATA_PATH = Path.DATA_FOLDER
     PREFIX_FAIL_SAVE_LIST = 'fileio_fail_save_list_'
     PREFIX_FAIL_LOAD_LIST = 'fileio_fail_load_list_'
 
@@ -54,7 +55,8 @@ class FileIO(object):
         return file_exist
 
     def get_module_name_from_file_path(self, file_path):
-        return file_path.split(self.project)[-1].split('/')[1:2][0]
+        return '_'.join(file_path.replace(self.DATA_PATH, '').split('/')[1:3])
+        # return file_path.split(self.project)[-1].split('/')[1:2][0]
 
     def delete_file(self, path, file_name):
         if self.check_if_file_exists(path, file_name):
